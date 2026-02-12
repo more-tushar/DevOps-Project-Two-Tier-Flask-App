@@ -269,50 +269,31 @@ pipeline {
             }
         }
 
-        stage('Build Image') {
-            steps {
-                sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
-            }
-        }
-
-        stage('Deploy New Version') {
+        stage('Deploy Application') {
             steps {
                 script {
                     try {
-                        sh "docker stop flask-container || true"
-                        sh "docker rm flask-container || true"
 
-                        sh """
-                        docker run -d --name flask-container \
-                        -p ${APP_PORT}:5000 \
-                        ${IMAGE_NAME}:${IMAGE_TAG}
-                        """
+                        // Stop old containers
+                        sh "docker compose down --remove-orphans || true"
 
-                        sleep 20
+                        // Build & start new containers
+                        sh "docker compose up -d --build"
 
+                        // Wait for containers to be ready
+                        sleep 40
+
+                        // Health check
                         sh "curl -f http://localhost:${APP_PORT}/health"
 
                         echo "New version is healthy ✅"
 
                     } catch (err) {
 
-                        echo "New version failed ❌ Rolling back..."
+                        echo "Deployment Failed ❌"
+                        sh "docker compose logs"
 
-                        sh "docker stop flask-container || true"
-                        sh "docker rm flask-container || true"
-
-                        def previousImage = sh(
-                            script: "docker images ${IMAGE_NAME} --format '{{.Tag}}' | sort -nr | sed -n '2p'",
-                            returnStdout: true
-                        ).trim()
-
-                        sh """
-                        docker run -d --name flask-container \
-                        -p ${APP_PORT}:5000 \
-                        ${IMAGE_NAME}:${previousImage}
-                        """
-
-                        error("Deployment Failed. Rolled back to ${previousImage}")
+                        error("Deployment Failed")
                     }
                 }
             }
@@ -341,7 +322,6 @@ pipeline {
         }
     }
 }
-
 ```
 
 ---
