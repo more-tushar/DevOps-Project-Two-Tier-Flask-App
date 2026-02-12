@@ -13,17 +13,29 @@ app.config['MYSQL_DB'] = os.environ.get('MYSQL_DB', 'default_db')
 # Initialize MySQL
 mysql = MySQL(app)
 
+import time
+
 def init_db():
     with app.app_context():
-        cur = mysql.connection.cursor()
-        cur.execute('''
-        CREATE TABLE IF NOT EXISTS messages (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            message TEXT
-        );
-        ''')
-        mysql.connection.commit()  
-        cur.close()
+        for i in range(10):
+            try:
+                cur = mysql.connection.cursor()
+                cur.execute('''
+                CREATE TABLE IF NOT EXISTS messages (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    message TEXT
+                );
+                ''')
+                mysql.connection.commit()
+                cur.close()
+                print("Database initialized successfully")
+                return
+            except Exception as e:
+                print("Database not ready, retrying...")
+                time.sleep(5)
+
+        raise Exception("Database connection failed after retries")
+
 
 @app.route('/')
 def hello():
@@ -41,6 +53,12 @@ def submit():
     mysql.connection.commit()
     cur.close()
     return jsonify({'message': new_message})
+
+
+@app.route('/health')
+def health():
+    return jsonify({"status": "healthy"}), 200
+
 
 if __name__ == '__main__':
     init_db()
