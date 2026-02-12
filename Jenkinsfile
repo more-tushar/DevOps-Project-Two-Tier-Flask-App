@@ -26,41 +26,35 @@ pipeline {
             }
         }
 
-        stage('Build Image') {
+        stage('Deploy Application') {
             steps {
-                sh "docker compose build"
+                script {
+                    try {
+
+                        // Stop old containers
+                        sh "docker compose down --remove-orphans || true"
+
+                        // Build & start new containers
+                        sh "docker compose up -d --build"
+
+                        // Wait for containers to be ready
+                        sleep 40
+
+                        // Health check
+                        sh "curl -f http://localhost:${APP_PORT}/health"
+
+                        echo "New version is healthy ✅"
+
+                    } catch (err) {
+
+                        echo "Deployment Failed ❌"
+                        sh "docker compose logs"
+
+                        error("Deployment Failed")
+                    }
+                }
             }
         }
-
-    stage('Deploy New Version') {
-        steps {
-            script {
-                try {
-
-                    sh "docker compose down || true"
-
-                    sh """
-                    docker compose up -d --build
-                    """
-
-                    sleep 40
-
-                    sh "curl -f http://localhost:${APP_PORT}/health"
-
-                    echo "New version is healthy ✅"
-
-                } catch (err) {
-
-                    echo "Deployment Failed ❌"
-
-                    sh "docker compose logs"
-
-                    error("Deployment Failed")
-                }
-        }
-    }
-}
-
 
         stage('Cleanup Old Images (Keep Last 3)') {
             steps {
