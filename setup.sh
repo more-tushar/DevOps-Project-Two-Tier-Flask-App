@@ -35,7 +35,7 @@ sudo systemctl start jenkins
 sudo systemctl enable jenkins
 
 echo "🔹 Allowing Jenkins to use Docker..."
-sudo usermod -aG docker jenkins
+ 
 sudo systemctl restart jenkins
 
 echo "🔹 Installing Docker Compose plugin..."
