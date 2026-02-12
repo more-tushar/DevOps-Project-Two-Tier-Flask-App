@@ -28,52 +28,39 @@ pipeline {
 
         stage('Build Image') {
             steps {
-                sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
+                sh "docker compose build"
             }
         }
 
-        stage('Deploy New Version') {
-            steps {
-                script {
-                    try {
-                        sh "docker stop flask-container || true"
-                        sh "docker rm flask-container || true"
+    stage('Deploy New Version') {
+        steps {
+            script {
+                try {
 
-                        sh """
-                        docker run -d --name flask-container \
-                        -p ${APP_PORT}:5000 \
-                        ${IMAGE_NAME}:${IMAGE_TAG}
-                        """
+                    sh "docker compose down || true"
 
-                        sleep 20
+                    sh """
+                    docker compose up -d --build
+                    """
 
-                        sh "curl -f http://localhost:${APP_PORT}/health"
+                    sleep 40
 
-                        echo "New version is healthy ✅"
+                    sh "curl -f http://localhost:${APP_PORT}/health"
 
-                    } catch (err) {
+                    echo "New version is healthy ✅"
 
-                        echo "New version failed ❌ Rolling back..."
+                } catch (err) {
 
-                        sh "docker stop flask-container || true"
-                        sh "docker rm flask-container || true"
+                    echo "Deployment Failed ❌"
 
-                        def previousImage = sh(
-                            script: "docker images ${IMAGE_NAME} --format '{{.Tag}}' | sort -nr | sed -n '2p'",
-                            returnStdout: true
-                        ).trim()
+                    sh "docker compose logs"
 
-                        sh """
-                        docker run -d --name flask-container \
-                        -p ${APP_PORT}:5000 \
-                        ${IMAGE_NAME}:${previousImage}
-                        """
-
-                        error("Deployment Failed. Rolled back to ${previousImage}")
-                    }
+                    error("Deployment Failed")
                 }
-            }
         }
+    }
+}
+
 
         stage('Cleanup Old Images (Keep Last 3)') {
             steps {
